@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Live - Ferny Sadoc Simancas Manjarrés</title>
+    <style>
+        :root {
+            --primary-dark: #1e272e;
+            --accent-blue: #3498db;
+            --alabanza-bg: #d4edda;
+            --break-bg: #fff3cd;
+            --lunch-bg: #f8d7da;
+            --active-pulse: #3498db;
+            --active-bg: #e1f5fe;
+            --btn-lock: #27ae60;
+            --btn-unlock: #c0392b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header-section {
+            background-color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 20px;
+            width: 95%;
+            max-width: 1200px;
+            border-left: 6px solid var(--accent-blue);
+            border-right: 6px solid var(--accent-blue);
+            position: relative;
+        }
+
+        h1 {
+            margin: 0;
+            color: var(--primary-dark);
+            font-size: 1.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            margin: 5px 0 0 0;
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        #clock-display {
+            font-family: 'Consolas', monospace;
+            font-size: 1.2rem;
+            color: var(--accent-blue);
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-toggle {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            color: white;
+        }
+
+        .btn-toggle.is-editing { background-color: var(--btn-lock); }
+        .btn-toggle.is-locked { background-color: var(--btn-unlock); }
+
+        .table-wrapper {
+            width: 100%;
+            max-width: 1500px;
+            overflow-x: auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+        thead {
+            background-color: var(--primary-dark);
+            color: white;
+        }
+
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        /* Column Specifics */
+        .col-num { width: 40px; background-color: #f8f9fa; font-weight: bold; color: #555; font-size: 1.1rem; }
+        .col-time { width: 110px; font-size: 0.8rem; font-family: 'Consolas', monospace; color: #444; background-color: #fdfdfd; }
+        .border-right-strong { border-right: 2px solid #bdc3c7; }
+        .border-left-strong { border-left: 2px solid #bdc3c7; }
+        .col-day { width: 13%; }
+
+        /* Row Styles */
+        .alabanza { background-color: var(--alabanza-bg); color: #155724; font-weight: bold; font-size: 0.9rem; }
+        .break { background-color: var(--break-bg); color: #856404; font-weight: bold; font-size: 0.9rem; }
+        .lunch { background-color: var(--lunch-bg); color: #721c24; font-weight: bold; font-size: 1rem; letter-spacing: 1px; }
+        
+        /* Inputs */
+        input {
+            width: 95%;
+            border: 1px solid transparent;
+            text-align: center;
+            padding: 5px;
+            font-size: 0.95rem;
+            background: transparent;
+            font-family: inherit;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+        }
+
+        input:not([readonly]):focus {
+            outline: none;
+            border-bottom: 2px solid var(--accent-blue);
+            background-color: #f8f9fa;
+        }
+        
+        input[readonly] { cursor: default; font-weight: 500; }
+        input[readonly]::placeholder { color: transparent; }
+        input::placeholder { color: #bdc3c7; font-style: italic; }
+
+        .note { font-size: 0.75rem; color: #666; display: block; margin-top: 2px; }
+        .merged-cell { background-color: #fff; }
+
+        /* --- ESTILOS DE CLASE ACTIVA (LIVE) --- */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(52, 152, 219, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0); }
+        }
+
+        .active-now {
+            background-color: var(--active-bg) !important;
+            border: 2px solid var(--accent-blue) !important;
+            border-radius: 4px;
+            position: relative;
+            animation: pulse 2s infinite;
+            font-weight: bold;
+            color: #000;
+        }
+        
+        /* Asegurar que el input dentro de la celda activa también se vea bien */
+        .active-now input {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <h1>Ferny Sadoc Simancas Manjarrés</h1>
+        <h2>English Department</h2>
+        <div id="clock-display">--:--:--</div>
+        
+        <div class="controls">
+            <button id="lockBtn" class="btn-toggle is-editing" onclick="toggleLock()">
+                🔒 Guardar y Bloquear
+            </button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-num">#<br><small>Lun</small></th>
+                    <th class="col-time border-right-strong">Hora<br>(Lunes)</th>
+                    <th class="col-day">LUNES</th>
+                    <th class="col-day">MARTES</th>
+                    <th class="col-day">MIÉRCOLES</th>
+                    <th class="col-day">JUEVES</th>
+                    <th class="col-day">VIERNES</th>
+                    <th class="col-time border-left-strong">Hora<br>(Mar-Vie)</th>
+                    <th class="col-num">#<br><small>M-V</small></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="alabanza">
+                    <td>A</td>
+                    <td class="border-right-strong">06:50 - 07:05</td>
+                    <td colspan="5" id="alabanza-row">ALABANZA MATUTINA</td>
+                    <td class="border-left-strong">06:50 - 07:05</td>
+                    <td>A</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">1</td>
+                    <td class="border-right-strong">07:05 - 07:50</td>
+                    <td id="cell-p1-lun"><input class="class-input" id="p1-lun" placeholder="Clase..."></td>
+                    <td id="cell-p1-mar"><input class="class-input" id="p1-mar" placeholder="Clase..."></td>
+                    <td id="cell-p1-mie"><input class="class-input" id="p1-mie" placeholder="Clase..."></td>
+                    <td id="cell-p1-jue"><input class="class-input" id="p1-jue" placeholder="Clase..."></td>
+                    <td id="cell-p1-vie"><input class="class-input" id="p1-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">07:05 - 08:00</td>
+                    <td class="col-num">1</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">2</td>
+                    <td class="border-right-strong">07:50 - 08:35</td>
+                    <td id="cell-p2-lun"><input class="class-input" id="p2-lun" placeholder="Clase..."></td>
+                    <td id="cell-p2-mar"><input class="class-input" id="p2-mar" placeholder="Clase..."></td>
+                    <td id="cell-p2-mie"><input class="class-input" id="p2-mie" placeholder="Clase..."></td>
+                    <td id="cell-p2-jue"><input class="class-input" id="p2-jue" placeholder="Clase..."></td>
+                    <td id="cell-p2-vie"><input class="class-input" id="p2-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">08:00 - 09:00</td>
+                    <td class="col-num">2</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">3</td>
+                    <td class="border-right-strong">08:35 - 09:20</td>
+                    <td id="cell-p3-lun"><input class="class-input" id="p3-lun" placeholder="Clase..."></td>
+                    <td id="cell-p3-mar"><input class="class-input" id="p3-mar" placeholder="Clase..."></td>
+                    <td id="cell-p3-mie"><input class="class-input" id="p3-mie" placeholder="Clase..."></td>
+                    <td id="cell-p3-jue"><input class="class-input" id="p3-jue" placeholder="Clase..."></td>
+                    <td id="cell-p3-vie"><input class="class-input" id="p3-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">09:00 - 10:00</td>
+                    <td class="col-num">3</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">4</td>
+                    <td class="border-right-strong">09:20 - 10:10<br><span class="note">(Clase 4)</span></td>
+                    <td id="cell-p4-lun"><input class="class-input" id="p4-lun" placeholder="Clase..."></td>
+                    <td colspan="4" class="break" id="break-resto">BREAK (RECREO)</td>
+                    <td class="border-left-strong">10:00 - 10:30<br><span class="note">(Break)</span></td>
+                    <td class="col-num break">D</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num break">D</td>
+                    <td class="border-right-strong">10:10 - 10:40<br><span class="note">(Break)</span></td>
+                    <td class="break" id="break-lun">BREAK</td>
+                    <td id="cell-p4-mar"><input class="class-input" id="p4-mar" placeholder="Clase..."></td>
+                    <td id="cell-p4-mie"><input class="class-input" id="p4-mie" placeholder="Clase..."></td>
+                    <td id="cell-p4-jue"><input class="class-input" id="p4-jue" placeholder="Clase..."></td>
+                    <td id="cell-p4-vie"><input class="class-input" id="p4-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">10:30 - 11:20<br><span class="note">(Clase 4)</span></td>
+                    <td class="col-num">4</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">5</td>
+                    <td class="border-right-strong">10:40 - 11:25</td>
+                    <td id="cell-p5-lun"><input class="class-input" id="p5-lun" placeholder="Clase..."></td>
+                    
+                    <td rowspan="2" class="merged-cell" id="cell-p5-mar"><input class="class-input" id="p5-mar" placeholder="Clase (Larga)..."></td>
+                    <td rowspan="2" class="merged-cell" id="cell-p5-mie"><input class="class-input" id="p5-mie" placeholder="Clase (Larga)..."></td>
+                    <td rowspan="2" class="merged-cell" id="cell-p5-jue"><input class="class-input" id="p5-jue" placeholder="Clase (Larga)..."></td>
+                    <td rowspan="2" class="merged-cell" id="cell-p5-vie"><input class="class-input" id="p5-vie" placeholder="Clase (Larga)..."></td>
+                    
+                    <td rowspan="2" class="border-left-strong" style="vertical-align: middle;">11:20 - 12:15<br><span class="note">(Clase 5 completa)</span></td>
+                    <td rowspan="2" class="col-num" style="vertical-align: middle;">5</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">6</td>
+                    <td class="border-right-strong">11:25 - 12:15</td>
+                    <td id="cell-p6-lun"><input class="class-input" id="p6-lun" placeholder="Clase..."></td>
+                </tr>
+
+                <tr class="lunch">
+                    <td>L</td>
+                    <td class="border-right-strong">12:15 - 13:15</td>
+                    <td colspan="5" id="lunch-row">LUNCH / ALMUERZO</td>
+                    <td class="border-left-strong">12:15 - 13:15</td>
+                    <td>L</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">7</td>
+                    <td class="border-right-strong">13:15 - 14:05</td>
+                    <td id="cell-p7-lun"><input class="class-input" id="p7-lun" placeholder="Clase..."></td>
+                    <td id="cell-p6-mar"><input class="class-input" id="p6-mar" placeholder="Clase..."></td>
+                    <td id="cell-p6-mie"><input class="class-input" id="p6-mie" placeholder="Clase..."></td>
+                    <td id="cell-p6-jue"><input class="class-input" id="p6-jue" placeholder="Clase..."></td>
+                    <td id="cell-p6-vie"><input class="class-input" id="p6-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">13:15 - 14:05</td>
+                    <td class="col-num">6</td>
+                </tr>
+
+                <tr>
+                    <td class="col-num">8</td>
+                    <td class="border-right-strong">14:05 - 15:00</td>
+                    <td id="cell-p8-lun"><input class="class-input" id="p8-lun" placeholder="Clase..."></td>
+                    <td id="cell-p7-mar"><input class="class-input" id="p7-mar" placeholder="Clase..."></td>
+                    <td id="cell-p7-mie"><input class="class-input" id="p7-mie" placeholder="Clase..."></td>
+                    <td id="cell-p7-jue"><input class="class-input" id="p7-jue" placeholder="Clase..."></td>
+                    <td id="cell-p7-vie"><input class="class-input" id="p7-vie" placeholder="Clase..."></td>
+                    <td class="border-left-strong">14:05 - 15:00</td>
+                    <td class="col-num">7</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        /* --- LOGICA DE ALMACENAMIENTO Y BLOQUEO --- */
+        const lockBtn = document.getElementById('lockBtn');
+        const inputs = document.querySelectorAll('.class-input');
+
+        window.onload = function() {
+            // Cargar datos
+            inputs.forEach(input => {
+                const savedValue = localStorage.getItem(input.id);
+                if (savedValue) input.value = savedValue;
+                input.addEventListener('input', function() {
+                    localStorage.setItem(this.id, this.value);
+                });
+            });
+            
+            // Iniciar Reloj
+            setInterval(updateClockAndActive, 1000);
+            updateClockAndActive(); // Primera ejecución inmediata
+        };
+
+        function toggleLock() {
+            const isEditing = lockBtn.classList.contains('is-editing');
+            if (isEditing) {
+                inputs.forEach(input => input.setAttribute('readonly', true));
+                lockBtn.innerHTML = '🔓 Desbloquear Edición';
+                lockBtn.classList.remove('is-editing');
+                lockBtn.classList.add('is-locked');
+            } else {
+                inputs.forEach(input => input.removeAttribute('readonly'));
+                lockBtn.innerHTML = '🔒 Guardar y Bloquear';
+                lockBtn.classList.remove('is-locked');
+                lockBtn.classList.add('is-editing');
+            }
+        }
+
+        /* --- LOGICA DE SEGUIMIENTO EN VIVO --- */
+        function updateClockAndActive() {
+            const now = new Date();
+            // Actualizar reloj digital
+            document.getElementById('clock-display').innerText = now.toLocaleTimeString();
+
+            // Limpiar clases activas anteriores
+            document.querySelectorAll('.active-now').forEach(el => el.classList.remove('active-now'));
+
+            const day = now.getDay(); // 0=Dom, 1=Lun, 2=Mar...
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const currentTime = hours * 60 + minutes;
+
+            // Si es fin de semana (0 o 6), no hacemos nada
+            if (day === 0 || day === 6) return;
+
+            let targetId = null;
+
+            // RANGOS DE TIEMPO (en minutos desde las 00:00)
+            // Ejemplo: 7:05 = 7*60 + 5 = 425
+
+            // --- LUNES (Day 1) ---
+            if (day === 1) {
+                if (currentTime >= 410 && currentTime < 425) targetId = 'alabanza-row';       // 6:50-7:05
+                else if (currentTime >= 425 && currentTime < 470) targetId = 'cell-p1-lun';   // 7:05-7:50
+                else if (currentTime >= 470 && currentTime < 515) targetId = 'cell-p2-lun';   // 7:50-8:35
+                else if (currentTime >= 515 && currentTime < 560) targetId = 'cell-p3-lun';   // 8:35-9:20
+                else if (currentTime >= 560 && currentTime < 610) targetId = 'cell-p4-lun';   // 9:20-10:10
+                else if (currentTime >= 610 && currentTime < 640) targetId = 'break-lun';     // 10:10-10:40
+                else if (currentTime >= 640 && currentTime < 685) targetId = 'cell-p5-lun';   // 10:40-11:25
+                else if (currentTime >= 685 && currentTime < 735) targetId = 'cell-p6-lun';   // 11:25-12:15
+                else if (currentTime >= 735 && currentTime < 795) targetId = 'lunch-row';     // 12:15-13:15
+                else if (currentTime >= 795 && currentTime < 845) targetId = 'cell-p7-lun';   // 13:15-14:05
+                else if (currentTime >= 845 && currentTime < 900) targetId = 'cell-p8-lun';   // 14:05-15:00
+            } 
+            // --- MARTES A VIERNES (Days 2-5) ---
+            else if (day >= 2 && day <= 5) {
+                const suffix = (day === 2) ? 'mar' : (day === 3) ? 'mie' : (day === 4) ? 'jue' : 'vie';
+                
+                if (currentTime >= 410 && currentTime < 425) targetId = 'alabanza-row';        // 6:50-7:05
+                else if (currentTime >= 425 && currentTime < 480) targetId = `cell-p1-${suffix}`; // 7:05-8:00
+                else if (currentTime >= 480 && currentTime < 540) targetId = `cell-p2-${suffix}`; // 8:00-9:00
+                else if (currentTime >= 540 && currentTime < 600) targetId = `cell-p3-${suffix}`; // 9:00-10:00
+                else if (currentTime >= 600 && currentTime < 630) targetId = 'break-resto';       // 10:00-10:30
+                else if (currentTime >= 630 && currentTime < 680) targetId = `cell-p4-${suffix}`; // 10:30-11:20
+                else if (currentTime >= 680 && currentTime < 735) targetId = `cell-p5-${suffix}`; // 11:20-12:15
+                else if (currentTime >= 735 && currentTime < 795) targetId = 'lunch-row';         // 12:15-13:15
+                else if (currentTime >= 795 && currentTime < 845) targetId = `cell-p6-${suffix}`; // 13:15-14:05
+                else if (currentTime >= 845 && currentTime < 900) targetId = `cell-p7-${suffix}`; // 14:05-15:00
+            }
+
+            // Aplicar estilo activo si encontramos coincidencia
+            if (targetId) {
+                const element = document.getElementById(targetId);
+                if (element) {
+                    element.classList.add('active-now');
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>
